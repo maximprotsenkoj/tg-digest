@@ -91,7 +91,7 @@ async def api_add_channel(request: Request):
     user = get_user(request)
     body = await request.json()
     username = body.get("username", "").strip().lstrip("@").lower()
-    if not username or not username.replace("_", "").isalnum() or len(username) > 32:
+    if not username or len(username) > 32 or not all(c.isalnum() or c in "_-" for c in username):
         raise HTTPException(status_code=400, detail="Invalid channel username")
     existing = await get_channels(DB_PATH, user["id"])
     if len(existing) >= 20:
