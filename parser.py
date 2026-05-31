@@ -89,43 +89,51 @@ async def fetch_channel_posts(channel: str, limit: int = 20, hours: int = 24) ->
     except Exception:
         return []
 
-    soup = BeautifulSoup(html, "html.parser")
-    bubbles = soup.find_all("div", class_="tgme_widget_message_bubble")
+    try:
+        soup = BeautifulSoup(html, "html.parser")
+        bubbles = soup.find_all("div", class_="tgme_widget_message_bubble")
+    except Exception:
+        return []
 
     cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
     posts = []
 
     for bubble in bubbles[-limit:]:
-        text_el = bubble.find("div", class_="tgme_widget_message_text")
-        date_link = bubble.find("a", class_="tgme_widget_message_date")
-        time_el = date_link.find("time") if date_link else None
+        try:
+            text_el = bubble.find("div", class_="tgme_widget_message_text")
+            date_link = bubble.find("a", class_="tgme_widget_message_date")
+            time_el = date_link.find("time") if date_link else None
 
-        # Skip posts without text (pure media only)
-        if not text_el:
-            continue
+            if not text_el:
+                continue
 
-        text = text_el.get_text(separator=" ", strip=True)
-        if len(text) < 40:
-            continue
+            text = text_el.get_text(separator=" ", strip=True)
+            if len(text) < 40:
+                continue
 
-        date_str = time_el.get("datetime", "") if time_el else ""
-        post_link = date_link.get("href", "") if date_link else ""
+            date_str = time_el.get("datetime", "") if time_el else ""
+            post_link = date_link.get("href", "") if date_link else ""
 
-        if date_str:
+            if date_str:
+                try:
+                    dt = datetime.fromisoformat(date_str)
+                    if dt < cutoff:
+                        continue
+                except Exception:
+                    pass
+
             try:
-                dt = datetime.fromisoformat(date_str)
-                if dt < cutoff:
-                    continue
+                media = _extract_media(bubble)
             except Exception:
-                pass
+                media = None
 
-        media = _extract_media(bubble)
-
-        posts.append({
-            "text": text[:500],
-            "date": date_str,
-            "link": post_link,
-            "media": media,
-        })
+            posts.append({
+                "text": text[:500],
+                "date": date_str,
+                "link": post_link,
+                "media": media,
+            })
+        except Exception:
+            continue
 
     return posts
