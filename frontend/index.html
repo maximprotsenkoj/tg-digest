@@ -15,20 +15,46 @@
       <button class="tab" data-tab="channels">Каналы</button>
     </nav>
 
-    <!-- Digest -->
+    <!-- Digest Tab -->
     <div id="tab-digest" class="tab-content active">
+
+      <!-- Filters -->
+      <div class="filters">
+        <div class="filter-row">
+          <span class="filter-label">Период</span>
+          <span class="filter-value" id="hours-label">24 часа</span>
+        </div>
+        <input id="hours-slider" type="range" min="0" max="5" value="3" />
+        <div class="slider-ticks">
+          <span>3ч</span><span>6ч</span><span>12ч</span><span>1д</span><span>3д</span><span>7д</span>
+        </div>
+
+        <div class="filter-row" style="margin-top:14px">
+          <span class="filter-label">Важность</span>
+        </div>
+        <div class="importance-btns">
+          <button class="imp-btn" data-min="1">Все</button>
+          <button class="imp-btn" data-min="5">Интересные</button>
+          <button class="imp-btn active" data-min="7">Средние</button>
+          <button class="imp-btn" data-min="9">Только важные</button>
+        </div>
+      </div>
+
       <button id="refresh-btn" class="btn-primary">
         <span>✨</span> Обновить дайджест
       </button>
+
       <div id="digest-list"></div>
     </div>
 
-    <!-- Channels -->
+    <!-- Channels Tab -->
     <div id="tab-channels" class="tab-content">
       <div class="add-form">
-        <input id="ch-input" type="text" placeholder="@channel или channel" autocomplete="off" spellcheck="false" />
+        <input id="ch-input" type="text" placeholder="@channel" autocomplete="off" spellcheck="false" />
         <button id="add-btn" class="btn-primary">Добавить</button>
       </div>
+
+      <div id="suggestions" class="suggestions"></div>
       <div id="channels-list"></div>
     </div>
 

@@ -1,3 +1,4 @@
+import asyncio
 import hashlib
 import hmac
 import json
@@ -14,7 +15,7 @@ from telegram.ext import Application, CommandHandler, ContextTypes
 
 from ai import get_digest
 from db import add_channel, get_channels, init_db, remove_channel
-from parser import fetch_channel_posts
+from parser import fetch_channel_info, fetch_channel_posts
 
 load_dotenv()
 
@@ -36,7 +37,7 @@ async def lifespan(app: FastAPI):
         await bot_app.bot.set_webhook(f"{WEBAPP_URL}/webhook")
         print(f"Webhook set: {WEBAPP_URL}/webhook")
     else:
-        print("WEBAPP_URL not set — running without webhook (use polling locally)")
+        print("WEBAPP_URL not set — running without webhook")
     yield
     await bot_app.bot.delete_webhook()
     await bot_app.stop()
@@ -107,23 +108,35 @@ async def api_remove_channel(username: str, request: Request):
     return {"ok": True}
 
 
+@app.get("/api/channel-info/{username}")
+async def api_channel_info(username: str):
+    info = await fetch_channel_info(username)
+    return info
+
+
 @app.post("/api/digest")
 async def api_digest(request: Request):
     user = get_user(request)
+    body = await request.json()
+    hours = max(1, min(int(body.get("hours", 24)), 168))
+
     channels = await get_channels(DB_PATH, user["id"])
     if not channels:
         return {"posts": [], "hint": "no_channels"}
 
+    # Fetch all channels in parallel
+    tasks = [fetch_channel_posts(ch, limit=20, hours=hours) for ch in channels]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+
     all_posts: list[dict] = []
     failed: list[str] = []
-    for ch in channels:
-        posts = await fetch_channel_posts(ch, limit=20)
-        if posts:
-            for p in posts:
-                p["channel"] = ch
-            all_posts.extend(posts)
-        else:
+    for ch, result in zip(channels, results):
+        if isinstance(result, Exception) or not result:
             failed.append(ch)
+        else:
+            for p in result:
+                p["channel"] = ch
+            all_posts.extend(result)
 
     if not all_posts:
         return {"posts": [], "hint": "no_posts", "failed": failed}
@@ -132,7 +145,7 @@ async def api_digest(request: Request):
     return {"posts": digest, "failed": failed}
 
 
-# ── Bot handlers ─────────────────────────────────────────────────────────────
+# ── Bot ──────────────────────────────────────────────────────────────────────
 
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     kb = InlineKeyboardMarkup([[
@@ -155,6 +168,6 @@ async def webhook(request: Request):
     return {"ok": True}
 
 
-# ── Frontend (последним — ловит всё остальное) ────────────────────────────────
+# ── Frontend ─────────────────────────────────────────────────────────────────
 
 app.mount("/", StaticFiles(directory="frontend", html=True), name="static")
