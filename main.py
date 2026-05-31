@@ -149,7 +149,21 @@ async def api_digest(request: Request):
         if not all_posts:
             return {"posts": [], "hint": "no_posts", "failed": failed}
 
+        # Build media lookup before passing to AI (AI doesn't handle media)
+        media_lookup: dict[tuple, dict] = {}
+        for p in all_posts:
+            if p.get("media"):
+                key = (p["channel"], p["text"][:60])
+                media_lookup[key] = p["media"]
+
         digest = await get_digest(all_posts)
+
+        # Merge media back into digest items
+        for item in digest:
+            key = (item.get("channel", ""), item.get("text", "")[:60])
+            if key in media_lookup:
+                item["media"] = media_lookup[key]
+
         return {"posts": digest, "failed": failed}
     except Exception as e:
         print(f"[digest error] {traceback.format_exc()}")

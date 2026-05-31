@@ -18,7 +18,6 @@
     <!-- Digest Tab -->
     <div id="tab-digest" class="tab-content active">
 
-      <!-- Filters -->
       <div class="filters">
         <div class="filter-row">
           <span class="filter-label">Период</span>
@@ -36,13 +35,16 @@
           <button class="imp-btn" data-min="1">Все</button>
           <button class="imp-btn" data-min="5">Интересные</button>
           <button class="imp-btn active" data-min="7">Средние</button>
-          <button class="imp-btn" data-min="9">Только важные</button>
+          <button class="imp-btn" data-min="9">Топ</button>
         </div>
       </div>
 
       <button id="refresh-btn" class="btn-primary">
         <span>✨</span> Обновить дайджест
       </button>
+
+      <!-- Tag filter — появляется после загрузки -->
+      <div id="tag-filter" class="tag-filter hidden"></div>
 
       <div id="digest-list"></div>
     </div>
@@ -53,7 +55,6 @@
         <input id="ch-input" type="text" placeholder="@channel" autocomplete="off" spellcheck="false" />
         <button id="add-btn" class="btn-primary">Добавить</button>
       </div>
-
       <div id="suggestions" class="suggestions"></div>
       <div id="channels-list"></div>
     </div>

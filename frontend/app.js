@@ -4,24 +4,22 @@ tg.expand();
 
 const initData = tg.initData || '';
 
-// ── Popular channel suggestions ───────────────────────────────────────────────
+// ── Suggestions ───────────────────────────────────────────────────────────────
 
 const SUGGESTIONS = [
-  { username: 'breakingmash',        name: 'Mash' },
-  { username: 'rbc_news',            name: 'РБК' },
-  { username: 'meduzaproject',       name: 'Meduza' },
-  { username: 'bbbreaking',          name: 'Раньше всех' },
-  { username: 'fontanka_news',       name: 'Фонтанка' },
-  { username: 'rian_ru',             name: 'РИА Новости' },
-  { username: 'tinkoff_invest_official', name: 'Тинькофф' },
-  { username: 'bitkogan',            name: 'Bitkogan' },
-  { username: 'durov',               name: 'Дуров' },
-  { username: 'vc_ru',               name: 'VC.ru' },
-  { username: 'habr_com',            name: 'Хабр' },
-  { username: 'ai_machinelearning_big_data', name: 'AI/ML' },
-  { username: 'techsparks',          name: 'TechSparks' },
-  { username: 'readovkanews',        name: 'Readovka' },
-  { username: 'bankrollo',           name: 'Банкролло' },
+  { username: 'breakingmash',               name: 'Mash' },
+  { username: 'rbc_news',                   name: 'РБК' },
+  { username: 'meduzaproject',              name: 'Meduza' },
+  { username: 'bbbreaking',                 name: 'Раньше всех' },
+  { username: 'rian_ru',                    name: 'РИА Новости' },
+  { username: 'fontanka_news',              name: 'Фонтанка' },
+  { username: 'tinkoff_invest_official',    name: 'Тинькофф' },
+  { username: 'bitkogan',                   name: 'Bitkogan' },
+  { username: 'durov',                      name: 'Дуров' },
+  { username: 'vc_ru',                      name: 'VC.ru' },
+  { username: 'habr_com',                   name: 'Хабр' },
+  { username: 'ai_machinelearning_big_data',name: 'AI/ML' },
+  { username: 'readovkanews',               name: 'Readovka' },
 ];
 
 // ── API ───────────────────────────────────────────────────────────────────────
@@ -60,15 +58,8 @@ async function getChannelInfo(username) {
   }
 }
 
-function avatarEl(info, username, size = 36) {
-  if (info && info.avatar) {
-    return `<img class="ch-avatar" src="${esc(info.avatar)}" width="${size}" height="${size}" loading="lazy" onerror="this.replaceWith(letterAvatar('${esc(username)}', ${size}))" />`;
-  }
-  return letterAvatarHTML(username, size);
-}
-
 function letterAvatarHTML(username, size = 36, cls = 'ch-avatar-letter') {
-  return `<div class="${cls}" style="width:${size}px;height:${size}px;font-size:${Math.round(size * 0.38)}px">${(username[0] || '?').toUpperCase()}</div>`;
+  return `<div class="${cls}" style="width:${size}px;height:${size}px;font-size:${Math.round(size * .38)}px">${(username[0] || '?').toUpperCase()}</div>`;
 }
 
 // ── Tabs ──────────────────────────────────────────────────────────────────────
@@ -85,22 +76,17 @@ document.querySelectorAll('.tab').forEach(tab => {
 
 // ── Slider ────────────────────────────────────────────────────────────────────
 
-const HOURS_STEPS = [3, 6, 12, 24, 72, 168];
+const HOURS_STEPS  = [3, 6, 12, 24, 72, 168];
 const HOURS_LABELS = ['3 часа', '6 часов', '12 часов', '24 часа', '3 дня', '7 дней'];
-
-const slider = document.getElementById('hours-slider');
+const slider    = document.getElementById('hours-slider');
 const hoursLabel = document.getElementById('hours-label');
 
 function currentHours() { return HOURS_STEPS[+slider.value]; }
-
-slider.addEventListener('input', () => {
-  hoursLabel.textContent = HOURS_LABELS[+slider.value];
-});
+slider.addEventListener('input', () => { hoursLabel.textContent = HOURS_LABELS[+slider.value]; });
 
 // ── Importance filter ─────────────────────────────────────────────────────────
 
 let currentMinScore = 7;
-let allPosts = [];
 
 document.querySelectorAll('.imp-btn').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -111,10 +97,40 @@ document.querySelectorAll('.imp-btn').forEach(btn => {
   });
 });
 
+// ── Tag filter ────────────────────────────────────────────────────────────────
+
+let selectedTags = new Set();
+const tagFilterEl = document.getElementById('tag-filter');
+
+function renderTagFilter() {
+  const allTags = [...new Set(allPosts.flatMap(p => p.tags || []))].sort();
+  if (!allTags.length) { tagFilterEl.classList.add('hidden'); return; }
+
+  const noneSelected = selectedTags.size === 0;
+  tagFilterEl.classList.remove('hidden');
+  tagFilterEl.innerHTML = `
+    <button class="tf-btn tf-btn-all ${noneSelected ? 'active' : ''}" onclick="toggleTag(null)">Все</button>
+    ${allTags.map(t => `
+      <button class="tf-btn ${selectedTags.has(t) ? 'active' : ''}" onclick="toggleTag('${esc(t)}')">${esc(t)}</button>
+    `).join('')}
+  `;
+}
+
+function toggleTag(tag) {
+  if (!tag) {
+    selectedTags.clear();
+  } else {
+    selectedTags.has(tag) ? selectedTags.delete(tag) : selectedTags.add(tag);
+  }
+  renderTagFilter();
+  renderDigest();
+}
+
 // ── Digest ────────────────────────────────────────────────────────────────────
 
+let allPosts = [];
 const refreshBtn = document.getElementById('refresh-btn');
-const digestList = document.getElementById('digest-list');
+const digestList  = document.getElementById('digest-list');
 
 function scoreClass(n) {
   if (n >= 8) return 'high';
@@ -122,9 +138,20 @@ function scoreClass(n) {
   return 'low';
 }
 
+function renderMedia(post) {
+  const m = post.media;
+  if (!m || !m.url) return '';
+  const isVideo = m.type === 'video' || m.type === 'video_thumb';
+  return `
+    <div class="card-media">
+      <img src="${esc(m.url)}" loading="lazy" onerror="this.closest('.card-media').remove()" />
+      ${isVideo ? `<div class="play-overlay"><div class="play-icon">&#9654;</div></div>` : ''}
+    </div>`;
+}
+
 function renderCard(post) {
-  const sc = post.importance || 0;
-  const tags = (post.tags || []).slice(0, 2).map(t => `<span class="tag">${esc(t)}</span>`).join('');
+  const sc   = post.importance || 0;
+  const tags = (post.tags || []).slice(0, 3).map(t => `<span class="tag">${esc(t)}</span>`).join('');
   const link = post.link || `https://t.me/${post.channel}`;
 
   return `
@@ -134,20 +161,22 @@ function renderCard(post) {
         <span class="badge badge-${scoreClass(sc)}">${sc}/10</span>
       </div>
       <p class="card-summary">${esc(post.summary || '')}</p>
+      ${renderMedia(post)}
       <details>
         <summary>Оригинал</summary>
         <p class="original-body">${esc(post.text || '')}</p>
-        <p class="original-source">
-          Источник: <a href="${esc(link)}" target="_blank">@${esc(post.channel)}</a>
-        </p>
+        <p class="original-source">Источник: <a href="${esc(link)}" target="_blank">@${esc(post.channel)}</a></p>
       </details>
     </div>`;
 }
 
 function renderDigest() {
-  const filtered = allPosts.filter(p => (p.importance || 0) >= currentMinScore);
+  let filtered = allPosts.filter(p => (p.importance || 0) >= currentMinScore);
+  if (selectedTags.size > 0) {
+    filtered = filtered.filter(p => (p.tags || []).some(t => selectedTags.has(t)));
+  }
   if (!filtered.length) {
-    digestList.innerHTML = `<div class="state">Нет постов с выбранным уровнем важности.<br>Попробуй снизить фильтр или расширить период.</div>`;
+    digestList.innerHTML = `<div class="state">Ничего не найдено с текущими фильтрами.<br>Попробуй снизить важность или убрать тег.</div>`;
     return;
   }
   digestList.innerHTML = `<div class="feed">${filtered.map(renderCard).join('')}</div>`;
@@ -157,6 +186,7 @@ async function loadDigest() {
   refreshBtn.disabled = true;
   refreshBtn.innerHTML = '<span class="spinner"></span> Загружаю...';
   digestList.innerHTML = '<div class="state">Анализирую каналы с помощью AI...</div>';
+  tagFilterEl.classList.add('hidden');
 
   try {
     const data = await api('POST', '/api/digest', { hours: currentHours() });
@@ -171,10 +201,12 @@ async function loadDigest() {
     }
 
     allPosts = data.posts;
+    selectedTags.clear();
+    renderTagFilter();
     renderDigest();
 
     if (data.failed && data.failed.length) {
-      digestList.innerHTML += `<div class="state" style="padding:8px 0;font-size:12px">⚠️ Не удалось загрузить: ${data.failed.map(c => '@' + c).join(', ')}</div>`;
+      digestList.innerHTML += `<div class="state" style="padding:6px 0;font-size:12px">⚠️ Не загрузились: ${data.failed.map(c => '@' + c).join(', ')}</div>`;
     }
   } catch (e) {
     digestList.innerHTML = `<div class="state state-error">Ошибка: ${esc(e.message)}</div>`;
@@ -186,27 +218,24 @@ async function loadDigest() {
 
 refreshBtn.addEventListener('click', loadDigest);
 
-// ── Channels tab ──────────────────────────────────────────────────────────────
+// ── Channels ──────────────────────────────────────────────────────────────────
 
-const chInput  = document.getElementById('ch-input');
-const addBtn   = document.getElementById('add-btn');
-const chList   = document.getElementById('channels-list');
-const suggsEl  = document.getElementById('suggestions');
+const chInput = document.getElementById('ch-input');
+const addBtn  = document.getElementById('add-btn');
+const chList  = document.getElementById('channels-list');
+const suggsEl = document.getElementById('suggestions');
 
 function renderSuggestions(existing) {
   const set = new Set(existing);
   const available = SUGGESTIONS.filter(s => !set.has(s.username));
   if (!available.length) { suggsEl.innerHTML = ''; return; }
-
   suggsEl.innerHTML = `
     <p class="suggestions-title">Популярные каналы</p>
     <div class="suggestions-list">
       ${available.map(s => `
         <button class="suggestion-pill" onclick="addFromSuggestion('${s.username}')">
-          <span class="pill-letter">${s.name[0].toUpperCase()}</span>
-          ${esc(s.name)}
-        </button>
-      `).join('')}
+          <span class="pill-letter">${s.name[0].toUpperCase()}</span>${esc(s.name)}
+        </button>`).join('')}
     </div>`;
 }
 
@@ -219,8 +248,6 @@ async function loadChannels() {
       chList.innerHTML = '<div class="state" style="padding:16px 0">Нет каналов. Добавь первый!</div>';
       return;
     }
-
-    // Render list, then load avatars async
     chList.innerHTML = `<div class="ch-list" id="ch-items">
       ${channels.map(ch => `
         <div class="ch-item" id="chi-${ch}">
@@ -233,22 +260,19 @@ async function loadChannels() {
         </div>`).join('')}
     </div>`;
 
-    // Load avatars and names in background
     channels.forEach(async ch => {
       const info = await getChannelInfo(ch);
       const nameEl = document.getElementById(`chname-${ch}`);
-      const item = document.getElementById(`chi-${ch}`);
+      const item   = document.getElementById(`chi-${ch}`);
       if (!nameEl || !item) return;
       if (info.title && info.title !== ch) nameEl.textContent = info.title;
       if (info.avatar) {
-        const avatarDiv = item.querySelector('.ch-avatar-letter');
-        if (avatarDiv) {
+        const div = item.querySelector('.ch-avatar-letter');
+        if (div) {
           const img = document.createElement('img');
-          img.className = 'ch-avatar';
-          img.src = info.avatar;
-          img.width = 36; img.height = 36;
-          img.onerror = () => {};
-          avatarDiv.replaceWith(img);
+          img.className = 'ch-avatar'; img.src = info.avatar;
+          img.width = 36; img.height = 36; img.onerror = () => {};
+          div.replaceWith(img);
         }
       }
     });
@@ -272,17 +296,13 @@ async function addChannel(username) {
   }
 }
 
-async function addFromSuggestion(username) {
-  await addChannel(username);
-}
+async function addFromSuggestion(username) { await addChannel(username); }
 
 async function removeChannel(username) {
   try {
     await api('DELETE', `/api/channels/${username}`);
     await loadChannels();
-  } catch (_) {
-    tg.showAlert('Ошибка удаления');
-  }
+  } catch (_) { tg.showAlert('Ошибка удаления'); }
 }
 
 function initChannelsTab() { loadChannels(); }
@@ -294,10 +314,8 @@ chInput.addEventListener('keydown', e => { if (e.key === 'Enter') addChannel(); 
 
 function esc(str) {
   return String(str || '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
