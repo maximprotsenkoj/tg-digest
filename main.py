@@ -116,33 +116,44 @@ async def api_channel_info(username: str):
 
 @app.post("/api/digest")
 async def api_digest(request: Request):
+    import traceback
     user = get_user(request)
-    body = await request.json()
-    hours = max(1, min(int(body.get("hours", 24)), 168))
 
-    channels = await get_channels(DB_PATH, user["id"])
-    if not channels:
-        return {"posts": [], "hint": "no_channels"}
+    try:
+        body = await request.json()
+        hours = max(1, min(int(body.get("hours", 24)), 168))
+    except Exception:
+        hours = 24
 
-    # Fetch all channels in parallel
-    tasks = [fetch_channel_posts(ch, limit=20, hours=hours) for ch in channels]
-    results = await asyncio.gather(*tasks, return_exceptions=True)
+    try:
+        channels = await get_channels(DB_PATH, user["id"])
+        if not channels:
+            return {"posts": [], "hint": "no_channels"}
 
-    all_posts: list[dict] = []
-    failed: list[str] = []
-    for ch, result in zip(channels, results):
-        if isinstance(result, Exception) or not result:
-            failed.append(ch)
-        else:
-            for p in result:
-                p["channel"] = ch
-            all_posts.extend(result)
+        tasks = [fetch_channel_posts(ch, limit=20, hours=hours) for ch in channels]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
 
-    if not all_posts:
-        return {"posts": [], "hint": "no_posts", "failed": failed}
+        all_posts: list[dict] = []
+        failed: list[str] = []
+        for ch, result in zip(channels, results):
+            if isinstance(result, Exception) or not result:
+                print(f"[fetch failed] {ch}: {result}")
+                failed.append(ch)
+            else:
+                for p in result:
+                    p["channel"] = ch
+                all_posts.extend(result)
 
-    digest = await get_digest(all_posts)
-    return {"posts": digest, "failed": failed}
+        print(f"[digest] user={user['id']} channels={channels} posts={len(all_posts)} failed={failed}")
+
+        if not all_posts:
+            return {"posts": [], "hint": "no_posts", "failed": failed}
+
+        digest = await get_digest(all_posts)
+        return {"posts": digest, "failed": failed}
+    except Exception as e:
+        print(f"[digest error] {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # ── Bot ──────────────────────────────────────────────────────────────────────
