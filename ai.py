@@ -3,6 +3,7 @@ import os
 import re
 
 import aiohttp
+from json_repair import repair_json
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
@@ -71,8 +72,7 @@ async def get_digest(posts: list[dict]) -> list[dict]:
 
                 data = await resp.json()
                 text = data["candidates"][0]["content"]["parts"][0]["text"]
-                m = re.search(r"\[[\s\S]*\]", text)
-                result = json.loads(m.group() if m else text)
+                result = json.loads(repair_json(text))
 
         if not isinstance(result, list):
             return []
