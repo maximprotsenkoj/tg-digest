@@ -1,11 +1,9 @@
 import json
 import os
-import re
 
-from groq import AsyncGroq
+import google.generativeai as genai
 
-client = AsyncGroq(api_key=os.getenv("GROQ_API_KEY", ""))
-MODEL = "llama-3.1-8b-instant"
+genai.configure(api_key=os.getenv("GEMINI_API_KEY", ""))
 
 TAGS = [
     "ИИ", "Технологии", "Крипто", "Финансы", "Политика",
@@ -16,81 +14,55 @@ TAGS = [
     "Кино", "Карьера", "Экономика", "Регуляции", "Соцсети", "Дизайн",
 ]
 
-SYSTEM = f"""Ты редактор новостного дайджеста. Оцени важность каждого поста строго по шкале.
+_SYSTEM = f"""Редактор дайджеста. Выбери до 10 важных постов.
 
-ШКАЛА ВАЖНОСТИ — соблюдай точно:
-9-10 → Катастрофы, войны, гибель людей, глобальный финансовый кризис, революционные открытия
-7-8  → Крупные законы/санкции, IPO >$500M, банкротства известных компаний, важные исследования с цифрами
-5-6  → Значимые корпоративные события, полезные инсайты с конкретикой, интересные тренды
-3-4  → Общая информация, комментарии, несрочно
-1-2  → Реклама, мотивация, банальные советы, опросы, репосты без смысла
+Важность (строго):
+9-10 → катастрофы, войны, революционные открытия
+7-8  → крупные законы, IPO, банкротства, исследования с цифрами
+5-6  → полезные инсайты, значимые тренды с конкретикой
+1-4  → мнения, советы, реклама, мотивация — сюда большинство постов
 
-СТРОГО: не давай 6+ за мнения без фактов, советы, цитаты, рекламу. Большинство постов должны получать 3-5.
+Не завышай. Реклама и банальщина = 1-2.
+Теги: {", ".join(TAGS)}
 
-Доступные теги: {", ".join(TAGS)}
-Выбирай 1-2 наиболее точных тега.
+Ответ — только JSON массив:
+[{{"channel":"","text":"","link":"","summary":"2-3 предложения на русском","importance":0,"tags":[]}}]"""
 
-Верни ТОЛЬКО JSON массив (никакого текста вокруг), до 15 лучших постов:
-[
-  {{
-    "channel": "username канала",
-    "text": "первые 200 символов оригинала",
-    "link": "ссылка на пост",
-    "summary": "краткое резюме на русском, 2-3 предложения с фактами",
-    "importance": число 1-10,
-    "tags": ["тег1", "тег2"]
-  }}
-]"""
-
-
-def _extract_json(text: str) -> list:
-    try:
-        return json.loads(text)
-    except Exception:
-        pass
-    match = re.search(r"\[[\s\S]*\]", text)
-    if match:
-        try:
-            return json.loads(match.group())
-        except Exception:
-            pass
-    return []
+_model = genai.GenerativeModel(
+    model_name="gemini-1.5-flash",
+    generation_config=genai.GenerationConfig(
+        temperature=0.2,
+        max_output_tokens=1200,
+        response_mime_type="application/json",
+    ),
+    system_instruction=_SYSTEM,
+)
 
 
 async def get_digest(posts: list[dict]) -> list[dict]:
     if not posts:
         return []
 
-    posts_to_process = posts[:40]
+    link_lookup = {p["text"][:60]: p.get("link", "") for p in posts}
 
-    # Build link lookup from original posts by text prefix
-    link_lookup: dict[str, str] = {}
-    for p in posts_to_process:
-        key = p["text"][:60]
-        link_lookup[key] = p.get("link", "")
-
-    formatted = "\n\n---\n\n".join(
-        f"Канал: @{p['channel']}\nДата: {p.get('date', '—')}\nТекст: {p['text'][:400]}"
-        for p in posts_to_process
+    # Компактный формат — без дат, текст 200 символов
+    formatted = "\n---\n".join(
+        f"@{p['channel']}: {p['text'][:200]}"
+        for p in posts[:25]
     )
 
     try:
-        resp = await client.chat.completions.create(
-            model=MODEL,
-            messages=[
-                {"role": "system", "content": SYSTEM},
-                {"role": "user", "content": f"Посты для анализа:\n\n{formatted}"},
-            ],
-            temperature=0.2,
-            max_tokens=3000,
-        )
-        raw = resp.choices[0].message.content.strip()
-        result = _extract_json(raw)
+        response = await _model.generate_content_async(f"Посты:\n{formatted}")
+        result = json.loads(response.text)
+
+        if not isinstance(result, list):
+            return []
 
         for item in result:
+            if not isinstance(item, dict):
+                continue
             if not item.get("link"):
-                key = item.get("text", "")[:60]
-                item["link"] = link_lookup.get(key, "")
+                item["link"] = link_lookup.get(item.get("text", "")[:60], "")
             if not isinstance(item.get("tags"), list):
                 item["tags"] = []
 
