@@ -1,10 +1,9 @@
 import json
 import os
 
-from google import genai
-from google.genai import types
+import google.generativeai as genai
 
-client = genai.Client(api_key=os.getenv("GEMINI_API_KEY", ""))
+genai.configure(api_key=os.getenv("GEMINI_API_KEY", ""))
 
 TAGS = [
     "ИИ", "Технологии", "Крипто", "Финансы", "Политика",
@@ -29,11 +28,14 @@ _SYSTEM = f"""Редактор дайджеста. Выбери до 10 важн
 Ответ — только JSON массив:
 [{{"channel":"","text":"","link":"","summary":"2-3 предложения на русском","importance":0,"tags":[]}}]"""
 
-_CONFIG = types.GenerateContentConfig(
+_model = genai.GenerativeModel(
+    model_name="gemini-2.0-flash",
+    generation_config=genai.GenerationConfig(
+        temperature=0.2,
+        max_output_tokens=2000,
+        response_mime_type="application/json",
+    ),
     system_instruction=_SYSTEM,
-    temperature=0.2,
-    max_output_tokens=2000,
-    response_mime_type="application/json",
 )
 
 
@@ -49,11 +51,7 @@ async def get_digest(posts: list[dict]) -> list[dict]:
     )
 
     try:
-        response = await client.aio.models.generate_content(
-            model="gemini-2.0-flash",
-            contents=f"Посты:\n{formatted}",
-            config=_CONFIG,
-        )
+        response = await _model.generate_content_async(f"Посты:\n{formatted}")
         result = json.loads(response.text)
 
         if not isinstance(result, list):
