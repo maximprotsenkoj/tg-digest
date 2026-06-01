@@ -32,7 +32,7 @@ _model = genai.GenerativeModel(
     model_name="gemini-1.5-flash",
     generation_config=genai.GenerationConfig(
         temperature=0.2,
-        max_output_tokens=1200,
+        max_output_tokens=2000,
         response_mime_type="application/json",
     ),
     system_instruction=_SYSTEM,
@@ -45,10 +45,9 @@ async def get_digest(posts: list[dict]) -> list[dict]:
 
     link_lookup = {p["text"][:60]: p.get("link", "") for p in posts}
 
-    # Компактный формат — без дат, текст 200 символов
     formatted = "\n---\n".join(
-        f"@{p['channel']}: {p['text'][:200]}"
-        for p in posts[:25]
+        f"@{p['channel']}: {p['text']}"
+        for p in posts
     )
 
     try:

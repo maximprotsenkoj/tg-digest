@@ -128,7 +128,7 @@ async def fetch_channel_posts(channel: str, limit: int = 20, hours: int = 24) ->
                 media = None
 
             posts.append({
-                "text": text[:500],
+                "text": text[:1000],
                 "date": date_str,
                 "link": post_link,
                 "media": media,
