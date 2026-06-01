@@ -6,7 +6,6 @@ import aiohttp
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
-GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
 
 TAGS = [
     "ИИ", "Технологии", "Крипто", "Финансы", "Политика",
@@ -43,8 +42,13 @@ async def get_digest(posts: list[dict]) -> list[dict]:
         for p in posts
     )
 
+    # Rebuild URL each call so GEMINI_MODEL env var is respected
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
+
     payload = {
-        "system_instruction": {"parts": [{"text": _SYSTEM}]},
+        "systemInstruction": {          # camelCase — обязательно для REST API
+            "parts": [{"text": _SYSTEM}]
+        },
         "contents": [{"role": "user", "parts": [{"text": f"Посты:\n{formatted}"}]}],
         "generationConfig": {
             "temperature": 0.2,
@@ -56,18 +60,19 @@ async def get_digest(posts: list[dict]) -> list[dict]:
     try:
         async with aiohttp.ClientSession() as session:
             async with session.post(
-                f"{GEMINI_URL}?key={GEMINI_API_KEY}",
+                f"{url}?key={GEMINI_API_KEY}",
                 json=payload,
-                timeout=aiohttp.ClientTimeout(total=30),
+                timeout=aiohttp.ClientTimeout(total=60),
             ) as resp:
                 if resp.status != 200:
                     err = await resp.text()
-                    print(f"[AI error] {resp.status}: {err[:300]}")
+                    print(f"[AI error] {resp.status} model={GEMINI_MODEL}: {err[:500]}")
                     return []
 
                 data = await resp.json()
                 text = data["candidates"][0]["content"]["parts"][0]["text"]
-                result = json.loads(text)
+                m = re.search(r"\[[\s\S]*\]", text)
+                result = json.loads(m.group() if m else text)
 
         if not isinstance(result, list):
             return []
