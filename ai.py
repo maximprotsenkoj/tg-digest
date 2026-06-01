@@ -1,9 +1,10 @@
 import json
 import os
 
-import google.generativeai as genai
+import aiohttp
 
-genai.configure(api_key=os.getenv("GEMINI_API_KEY", ""))
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+GEMINI_URL = "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent"
 
 TAGS = [
     "ИИ", "Технологии", "Крипто", "Финансы", "Политика",
@@ -28,16 +29,6 @@ _SYSTEM = f"""Редактор дайджеста. Выбери до 10 важн
 Ответ — только JSON массив:
 [{{"channel":"","text":"","link":"","summary":"2-3 предложения на русском","importance":0,"tags":[]}}]"""
 
-_model = genai.GenerativeModel(
-    model_name="gemini-1.5-flash-latest",
-    generation_config=genai.GenerationConfig(
-        temperature=0.2,
-        max_output_tokens=2000,
-        response_mime_type="application/json",
-    ),
-    system_instruction=_SYSTEM,
-)
-
 
 async def get_digest(posts: list[dict]) -> list[dict]:
     if not posts:
@@ -50,9 +41,31 @@ async def get_digest(posts: list[dict]) -> list[dict]:
         for p in posts
     )
 
+    payload = {
+        "system_instruction": {"parts": [{"text": _SYSTEM}]},
+        "contents": [{"role": "user", "parts": [{"text": f"Посты:\n{formatted}"}]}],
+        "generationConfig": {
+            "temperature": 0.2,
+            "maxOutputTokens": 2000,
+            "responseMimeType": "application/json",
+        },
+    }
+
     try:
-        response = await _model.generate_content_async(f"Посты:\n{formatted}")
-        result = json.loads(response.text)
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                f"{GEMINI_URL}?key={GEMINI_API_KEY}",
+                json=payload,
+                timeout=aiohttp.ClientTimeout(total=30),
+            ) as resp:
+                if resp.status != 200:
+                    err = await resp.text()
+                    print(f"[AI error] {resp.status}: {err[:300]}")
+                    return []
+
+                data = await resp.json()
+                text = data["candidates"][0]["content"]["parts"][0]["text"]
+                result = json.loads(text)
 
         if not isinstance(result, list):
             return []
@@ -66,6 +79,7 @@ async def get_digest(posts: list[dict]) -> list[dict]:
                 item["tags"] = []
 
         return sorted(result, key=lambda x: x.get("importance", 0), reverse=True)
+
     except Exception as e:
         print(f"[AI error] {e}")
         return []
