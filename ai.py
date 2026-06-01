@@ -5,8 +5,8 @@ import re
 import aiohttp
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash-exp")
-GEMINI_URL = f"https://generativelanguage.googleapis.com/v1/models/{GEMINI_MODEL}:generateContent"
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
 
 TAGS = [
     "ИИ", "Технологии", "Крипто", "Финансы", "Политика",
@@ -44,10 +44,12 @@ async def get_digest(posts: list[dict]) -> list[dict]:
     )
 
     payload = {
-        "contents": [{"role": "user", "parts": [{"text": f"{_SYSTEM}\n\nПосты:\n{formatted}"}]}],
+        "system_instruction": {"parts": [{"text": _SYSTEM}]},
+        "contents": [{"role": "user", "parts": [{"text": f"Посты:\n{formatted}"}]}],
         "generationConfig": {
             "temperature": 0.2,
             "maxOutputTokens": 2000,
+            "responseMimeType": "application/json",
         },
     }
 
@@ -65,9 +67,7 @@ async def get_digest(posts: list[dict]) -> list[dict]:
 
                 data = await resp.json()
                 text = data["candidates"][0]["content"]["parts"][0]["text"]
-                # Extract JSON array from response
-                m = re.search(r"\[[\s\S]*\]", text)
-                result = json.loads(m.group()) if m else json.loads(text)
+                result = json.loads(text)
 
         if not isinstance(result, list):
             return []
