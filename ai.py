@@ -29,7 +29,7 @@ _SYSTEM = f"""Редактор дайджеста. Выбери до 10 важн
 [{{"channel":"","text":"","link":"","summary":"2-3 предложения на русском","importance":0,"tags":[]}}]"""
 
 _model = genai.GenerativeModel(
-    model_name="gemini-2.0-flash",
+    model_name="gemini-1.5-flash-latest",
     generation_config=genai.GenerationConfig(
         temperature=0.2,
         max_output_tokens=2000,
