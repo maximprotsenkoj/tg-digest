@@ -115,6 +115,19 @@ async def api_channel_info(username: str):
     return info
 
 
+@app.get("/api/gemini-models")
+async def api_gemini_models():
+    import aiohttp, os
+    key = os.getenv("GEMINI_API_KEY", "")
+    async with aiohttp.ClientSession() as s:
+        async with s.get(
+            f"https://generativelanguage.googleapis.com/v1beta/models?key={key}"
+        ) as r:
+            data = await r.json()
+    models = [m["name"] for m in data.get("models", []) if "generateContent" in m.get("supportedGenerationMethods", [])]
+    return {"models": models}
+
+
 @app.post("/api/digest")
 async def api_digest(request: Request):
     import traceback
