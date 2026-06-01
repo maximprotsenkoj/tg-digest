@@ -52,7 +52,7 @@ async def get_digest(posts: list[dict]) -> list[dict]:
         "contents": [{"role": "user", "parts": [{"text": f"Посты:\n{formatted}"}]}],
         "generationConfig": {
             "temperature": 0.2,
-            "maxOutputTokens": 2000,
+            "maxOutputTokens": 8192,
             "responseMimeType": "application/json",
         },
     }
