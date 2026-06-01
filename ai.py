@@ -44,8 +44,7 @@ async def get_digest(posts: list[dict]) -> list[dict]:
     )
 
     payload = {
-        "system_instruction": {"parts": [{"text": _SYSTEM}]},
-        "contents": [{"role": "user", "parts": [{"text": f"Посты:\n{formatted}"}]}],
+        "contents": [{"role": "user", "parts": [{"text": f"{_SYSTEM}\n\nПосты:\n{formatted}"}]}],
         "generationConfig": {
             "temperature": 0.2,
             "maxOutputTokens": 2000,
