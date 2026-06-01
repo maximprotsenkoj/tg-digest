@@ -14,14 +14,13 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update, WebAppI
 from telegram.ext import Application, CommandHandler, ContextTypes
 
 from ai import get_digest
-from db import add_channel, get_channels, init_db, remove_channel
+from db import add_channel, close_db, get_channels, init_db, remove_channel, upsert_user
 from parser import fetch_channel_info, fetch_channel_posts
 
 load_dotenv()
 
 BOT_TOKEN = os.getenv("BOT_TOKEN", "")
 WEBAPP_URL = os.getenv("WEBAPP_URL", "")
-DB_PATH = os.getenv("DB_PATH", "digest.db")
 
 bot_app = Application.builder().token(BOT_TOKEN).build()
 
@@ -30,7 +29,7 @@ bot_app = Application.builder().token(BOT_TOKEN).build()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await init_db(DB_PATH)
+    await init_db()
     await bot_app.initialize()
     await bot_app.start()
     if WEBAPP_URL:
@@ -42,6 +41,7 @@ async def lifespan(app: FastAPI):
     await bot_app.bot.delete_webhook()
     await bot_app.stop()
     await bot_app.shutdown()
+    await close_db()
 
 
 app = FastAPI(lifespan=lifespan)
@@ -83,7 +83,7 @@ def get_user(request: Request) -> dict:
 @app.get("/api/channels")
 async def api_get_channels(request: Request):
     user = get_user(request)
-    channels = await get_channels(DB_PATH, user["id"])
+    channels = await get_channels(user["id"])
     return {"channels": channels}
 
 
@@ -94,17 +94,18 @@ async def api_add_channel(request: Request):
     username = body.get("username", "").strip().lstrip("@").lower()
     if not username or len(username) > 32 or not all(c.isalnum() or c in "_-" for c in username):
         raise HTTPException(status_code=400, detail="Invalid channel username")
-    existing = await get_channels(DB_PATH, user["id"])
+    existing = await get_channels(user["id"])
     if len(existing) >= 20:
         raise HTTPException(status_code=400, detail="Максимум 20 каналов")
-    await add_channel(DB_PATH, user["id"], username)
+    await upsert_user(user["id"], user.get("username"), user.get("first_name"))
+    await add_channel(user["id"], username)
     return {"ok": True}
 
 
 @app.delete("/api/channels/{username}")
 async def api_remove_channel(username: str, request: Request):
     user = get_user(request)
-    await remove_channel(DB_PATH, user["id"], username)
+    await remove_channel(user["id"], username)
     return {"ok": True}
 
 
@@ -126,7 +127,7 @@ async def api_digest(request: Request):
         hours = 24
 
     try:
-        channels = await get_channels(DB_PATH, user["id"])
+        channels = await get_channels(user["id"])
         if not channels:
             return {"posts": [], "hint": "no_channels"}
 
